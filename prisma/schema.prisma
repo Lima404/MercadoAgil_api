@@ -1,0 +1,223 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ======= ENUMS =======
+
+enum Role {
+  ADMIN
+  CLIENT
+}
+
+enum OrderStatus {
+  RECEBIDO
+  PRODUCAO
+  DELIVERY
+  ENTREGUE
+}
+
+enum PaymentMethod {
+  CREDITO
+  DEBITO
+  PIX
+  DINHEIRO
+}
+
+enum PaymentStatus {
+  PENDENTE
+  CONFIRMADO
+  CANCELADO
+}
+
+// ======= MODELS =======
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  nome        String
+  email       String   @unique
+  telefone    String
+  senha_hash  String
+  role        Role     @default(CLIENT)
+  created_at  DateTime @default(now())
+
+  // Relações
+  addresses     Address[]
+  cart          Cart?
+  orders        Order[]
+  recurringList RecurringList?
+}
+
+model Address {
+  id      String @id @default(uuid()) @db.Uuid
+  rua     String
+  bairro  String
+  cep     String
+  numero  String
+  cidade  String
+  estado  String
+  pais    String
+
+  // Relações
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @db.Uuid
+
+  orders Order[]
+}
+
+model Product {
+  id               String   @id @default(uuid()) @db.Uuid
+  codigo_produto   String   @unique
+  nome_produto     String
+  marca            String
+  categoria        String
+  tipo             String
+  vencimento       DateTime @db.Date
+  quantidade       Int
+  preco_de_compra  Decimal  @db.Decimal(10, 2)
+  preco_de_venda   Decimal  @db.Decimal(10, 2)
+  img_produto      String
+  promocao         Boolean
+  created_at       DateTime @default(now())
+
+  // Relações
+  cartItems      CartItem[]
+  promotionItems PromotionItem[]
+  recurringItems RecurringItem[]
+}
+
+model Promotion {
+  id         String   @id @default(uuid()) @db.Uuid
+  nome       String
+  descricao  String
+  ativa      Boolean
+  created_at DateTime @default(now())
+
+  // Relações
+  items PromotionItem[]
+}
+
+model PromotionItem {
+  id                String  @id @default(uuid()) @db.Uuid
+  preco_promocional Decimal @db.Decimal(10, 2)
+
+  // Relações
+  promotion   Promotion @relation(fields: [promotionId], references: [id])
+  promotionId String   @db.Uuid
+
+  product   Product @relation(fields: [productId], references: [id])
+  productId String  @db.Uuid
+}
+
+model Cart {
+  id                   String   @id @default(uuid()) @db.Uuid
+  is_recorrente_mensal Boolean
+  created_at           DateTime @default(now())
+
+  // Relações
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @db.Uuid @unique  // 1–1: um usuário tem no máximo um carrinho
+
+  items  CartItem[]
+}
+
+model CartItem {
+  id           String  @id @default(uuid()) @db.Uuid
+  quantidade   Int
+  // snapshot
+  nome_produto String
+  marca        String
+  validade     DateTime @db.Date
+  preco_venda  Decimal  @db.Decimal(10, 2)
+  promocao     Boolean
+  img_produto  String
+
+  // Relações
+  cart      Cart    @relation(fields: [cartId], references: [id])
+  cartId    String  @db.Uuid
+
+  product   Product @relation(fields: [productId], references: [id])
+  productId String  @db.Uuid
+}
+
+model Order {
+  id                String       @id @default(uuid()) @db.Uuid
+  status            OrderStatus
+  valor_total_venda Decimal      @db.Decimal(10, 2)
+  created_at        DateTime     @default(now())
+
+  // Relações
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String  @db.Uuid
+
+  address   Address @relation(fields: [addressId], references: [id])
+  addressId String  @db.Uuid
+
+  items     OrderItem[]
+  payment   Payment?
+}
+
+model OrderItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  quantidade     Int
+  // snapshot
+  nome_produto   String
+  marca          String
+  validade       DateTime @db.Date
+  preco_unitario Decimal  @db.Decimal(10, 2)
+  promocao       Boolean
+
+  // Relações
+  order   Order  @relation(fields: [orderId], references: [id])
+  orderId String @db.Uuid
+}
+
+model Payment {
+  id         String        @id @default(uuid()) @db.Uuid
+  metodo     PaymentMethod
+  status     PaymentStatus
+  valor_pago Decimal       @db.Decimal(10, 2)
+  created_at DateTime      @default(now())
+
+  // Relações (1–1 com Order)
+  order   Order  @relation(fields: [orderId], references: [id])
+  orderId String @db.Uuid @unique
+}
+
+model RecurringList {
+  id         String   @id @default(uuid()) @db.Uuid
+  ativa      Boolean
+  created_at DateTime @default(now())
+
+  // Relações
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @db.Uuid @unique
+
+  items  RecurringItem[]
+}
+
+model RecurringItem {
+  id           String  @id @default(uuid()) @db.Uuid
+  quantidade   Int
+  // snapshot
+  nome_produto String
+  marca        String
+  preco_base   Decimal @db.Decimal(10, 2)
+
+  // Relações
+  recurringList   RecurringList @relation(fields: [recurringListId], references: [id])
+  recurringListId String        @db.Uuid
+
+  product   Product @relation(fields: [productId], references: [id])
+  productId String  @db.Uuid
+}
